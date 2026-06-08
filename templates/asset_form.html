@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit' if action=='edit' else 'Add' }} Asset · IT Asset Manager{% endblock %}
+{% block content %}
+{% set a = asset %}
+<div class="topbar">
+  <div>
+    <h1>{{ 'Edit Asset' if action=='edit' else 'Add New Asset' }}</h1>
+    <div class="sub">{{ a['asset_tag'] if a else 'Fill in the asset details below' }}</div>
+  </div>
+  <a class="btn ghost" href="{{ url_for('asset_list') }}">← Back</a>
+</div>
+
+<div class="panel">
+<form method="post">
+  <div class="form-grid">
+    <div class="field">
+      <label>Asset Tag *</label>
+      <input name="asset_tag" required value="{{ a['asset_tag'] if a else '' }}" placeholder="e.g. LT-0001">
+    </div>
+    <div class="field">
+      <label>Name *</label>
+      <input name="name" required value="{{ a['name'] if a else '' }}" placeholder="e.g. Dev Laptop 01">
+    </div>
+    <div class="field">
+      <label>Category</label>
+      <input name="category" list="catlist" autocomplete="off"
+             value="{{ a['category'] if a else '' }}"
+             placeholder="Pick or type a new one, e.g. Keyboard">
+      <datalist id="catlist">
+        {% for c in categories %}<option value="{{ c }}"></option>{% endfor %}
+      </datalist>
+      <small class="muted" style="font-size:12px;">Choose from the list or type a new category to create it.</small>
+    </div>
+    <div class="field">
+      <label>Status</label>
+      <select name="status">
+        {% for s in statuses %}<option value="{{ s }}" {{ 'selected' if a and a['status']==s }}>{{ s }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label>Manufacturer</label>
+      <input name="manufacturer" value="{{ a['manufacturer'] if a else '' }}" placeholder="e.g. Dell">
+    </div>
+    <div class="field">
+      <label>Model</label>
+      <input name="model" value="{{ a['model'] if a else '' }}" placeholder="e.g. Latitude 7440">
+    </div>
+    <div class="field">
+      <label>Serial Number</label>
+      <input name="serial_number" value="{{ a['serial_number'] if a else '' }}">
+    </div>
+    <div class="field">
+      <label>Assigned To</label>
+      <input name="assigned_to" value="{{ a['assigned_to'] if a else '' }}" placeholder="Person / team">
+    </div>
+    <div class="field">
+      <label>Employee ID</label>
+      <input name="employee_id" value="{{ a['employee_id'] if a else '' }}" placeholder="e.g. EMP-1001">
+    </div>
+    <div class="field">
+      <label>Phone Number</label>
+      <input name="phone" type="tel" value="{{ a['phone'] if a else '' }}" placeholder="e.g. +971 50 123 4567">
+    </div>
+    <div class="field">
+      <label>Location</label>
+      <input name="location" value="{{ a['location'] if a else '' }}" placeholder="e.g. HQ - Floor 3">
+    </div>
+    <div class="field">
+      <label>Purchase Cost (AED)</label>
+      <input name="purchase_cost" type="number" step="0.01" min="0" value="{{ a['purchase_cost'] if a else '' }}">
+    </div>
+    <div class="field">
+      <label>Purchase Date</label>
+      <input name="purchase_date" type="date" value="{{ a['purchase_date'] if a else '' }}">
+    </div>
+    <div class="field">
+      <label>Warranty End</label>
+      <input name="warranty_end" type="date" value="{{ a['warranty_end'] if a else '' }}">
+    </div>
+    <div class="field full">
+      <label>Notes</label>
+      <textarea name="notes" rows="3" placeholder="Any extra details…">{{ a['notes'] if a else '' }}</textarea>
+    </div>
+  </div>
+  <div style="margin-top:20px; display:flex; gap:10px;">
+    <button class="btn" type="submit">{{ 'Save Changes' if action=='edit' else 'Create Asset' }}</button>
+    <a class="btn ghost" href="{{ url_for('asset_list') }}">Cancel</a>
+  </div>
+</form>
+</div>
+{% endblock %}

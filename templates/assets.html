@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+{% block title %}Assets · IT Asset Manager{% endblock %}
+{% block content %}
+<div class="topbar">
+  <div>
+    <h1>Assets</h1>
+    <div class="sub">{{ assets|length }} asset(s) shown</div>
+  </div>
+  <div style="display:flex; gap:10px;">
+    {% set qs = '?q=' ~ (q|urlencode) ~ '&category=' ~ (sel_category|urlencode) ~ '&status=' ~ (sel_status|urlencode) %}
+    <div class="col-menu-wrap">
+      <button type="button" class="btn ghost" id="exportBtn">⬇ Export ▾</button>
+      <div class="col-menu" id="exportMenu" hidden>
+        <a class="col-menu-item" href="{{ url_for('export_csv') }}{{ qs }}">📄 CSV (.csv)</a>
+        <a class="col-menu-item" href="{{ url_for('export_xlsx') }}{{ qs }}">📊 Excel (.xlsx)</a>
+        <a class="col-menu-item" href="{{ url_for('export_pdf') }}{{ qs }}">📕 PDF (.pdf)</a>
+      </div>
+    </div>
+    <div class="col-menu-wrap">
+      <button type="button" class="btn ghost" id="colBtn">🧩 Columns ▾</button>
+      <div class="col-menu" id="colMenu" hidden></div>
+    </div>
+    <a class="btn" href="{{ url_for('asset_new') }}">➕ Add Asset</a>
+  </div>
+</div>
+
+<form class="filters" method="get" action="{{ url_for('asset_list') }}">
+  <input type="text" name="q" placeholder="Search tag, name, person, employee ID, phone, serial…" value="{{ q }}" style="min-width:300px;">
+  <select name="category">
+    <option value="">All categories</option>
+    {% for c in categories %}<option value="{{ c }}" {{ 'selected' if c==sel_category }}>{{ c }}</option>{% endfor %}
+  </select>
+  <select name="status">
+    <option value="">All statuses</option>
+    {% for s in statuses %}<option value="{{ s }}" {{ 'selected' if s==sel_status }}>{{ s }}</option>{% endfor %}
+  </select>
+  <button class="btn" type="submit">Filter</button>
+  <a class="btn ghost" href="{{ url_for('asset_list') }}">Reset</a>
+</form>
+
+<div class="panel" style="padding:0;">
+<table id="assetTable">
+  <thead>
+    <tr>
+      <th class="c-tag">Tag</th>
+      <th class="c-name">Name</th>
+      <th class="c-serial">Serial Number</th>
+      <th class="c-category">Category</th>
+      <th class="c-status">Status</th>
+      <th class="c-assigned">Assigned To</th>
+      <th class="c-empid">Employee ID</th>
+      <th class="c-phone">Phone</th>
+      <th class="c-location">Location</th>
+      <th class="c-cost">Cost</th>
+      <th class="c-warranty">Warranty End</th>
+      <th class="c-actions"></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for a in assets %}
+    <tr>
+      <td class="c-tag"><strong>{{ a['asset_tag'] }}</strong></td>
+      <td class="c-name">{{ a['name'] }}</td>
+      <td class="c-serial">{{ a['serial_number'] or '—' }}</td>
+      <td class="c-category">{{ a['category'] }}</td>
+      <td class="c-status"><span class="badge b-{{ a['status'] | lower | replace(' ','') }}">{{ a['status'] }}</span></td>
+      <td class="c-assigned">{{ a['assigned_to'] or '—' }}</td>
+      <td class="c-empid">{{ a['employee_id'] or '—' }}</td>
+      <td class="c-phone">{{ a['phone'] or '—' }}</td>
+      <td class="c-location">{{ a['location'] or '—' }}</td>
+      <td class="c-cost">{{ a['purchase_cost'] | money }}</td>
+      <td class="c-warranty">{{ a['warranty_end'] or '—' }}</td>
+      <td class="c-actions" style="white-space:nowrap;">
+        <a class="btn ghost sm" href="{{ url_for('asset_edit', asset_id=a['id']) }}">Edit</a>
+        <form method="post" action="{{ url_for('asset_delete', asset_id=a['id']) }}" style="display:inline;"
+              onsubmit="return confirm('Delete {{ a['asset_tag'] }}?');">
+          <button class="btn danger sm" type="submit">Delete</button>
+        </form>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="12" class="muted" style="text-align:center;padding:32px;">No assets found.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+
+<script>
+// Column show/hide control. Choices persist in the browser via localStorage.
+(function () {
+  // key -> label. "actions" is always visible (not toggleable).
+  const COLS = [
+    ["tag", "Tag"], ["name", "Name"], ["serial", "Serial Number"],
+    ["category", "Category"], ["status", "Status"], ["assigned", "Assigned To"],
+    ["empid", "Employee ID"], ["phone", "Phone"], ["location", "Location"],
+    ["cost", "Cost"], ["warranty", "Warranty End"]
+  ];
+  const STORE_KEY = "assethub_hidden_cols";
+  const menu = document.getElementById("colMenu");
+  const btn = document.getElementById("colBtn");
+
+  function getHidden() {
+    try { return JSON.parse(localStorage.getItem(STORE_KEY)) || []; }
+    catch (e) { return []; }
+  }
+  function setHidden(arr) {
+    localStorage.setItem(STORE_KEY, JSON.stringify(arr));
+  }
+  function applyCol(key, visible) {
+    document.querySelectorAll(".c-" + key).forEach(function (el) {
+      el.style.display = visible ? "" : "none";
+    });
+  }
+  function render() {
+    const hidden = getHidden();
+    menu.innerHTML = "";
+    COLS.forEach(function (c) {
+      const key = c[0], label = c[1];
+      const visible = hidden.indexOf(key) === -1;
+      applyCol(key, visible);
+      const row = document.createElement("label");
+      row.className = "col-menu-item";
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = visible;
+      cb.addEventListener("change", function () {
+        let h = getHidden();
+        if (cb.checked) { h = h.filter(function (k) { return k !== key; }); }
+        else if (h.indexOf(key) === -1) { h.push(key); }
+        setHidden(h);
+        applyCol(key, cb.checked);
+      });
+      row.appendChild(cb);
+      row.appendChild(document.createTextNode(" " + label));
+      menu.appendChild(row);
+    });
+    // Reset link
+    const reset = document.createElement("button");
+    reset.type = "button";
+    reset.className = "btn ghost sm";
+    reset.style.margin = "8px";
+    reset.textContent = "Show all";
+    reset.addEventListener("click", function () { setHidden([]); render(); });
+    menu.appendChild(reset);
+  }
+
+  btn.addEventListener("click", function (e) {
+    e.stopPropagation();
+    menu.hidden = !menu.hidden;
+  });
+
+  // Export dropdown toggle
+  const exportBtn = document.getElementById("exportBtn");
+  const exportMenu = document.getElementById("exportMenu");
+  if (exportBtn) {
+    exportBtn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      exportMenu.hidden = !exportMenu.hidden;
+    });
+  }
+
+  document.addEventListener("click", function (e) {
+    if (!menu.contains(e.target) && e.target !== btn) menu.hidden = true;
+    if (exportMenu && !exportMenu.contains(e.target) && e.target !== exportBtn) exportMenu.hidden = true;
+  });
+
+  render();
+})();
+</script>
+{% endblock %}

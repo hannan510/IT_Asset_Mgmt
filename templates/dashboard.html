@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block title %}Dashboard · IT Asset Manager{% endblock %}
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+{% endblock %}
+{% block content %}
+<div class="topbar">
+  <div>
+    <h1>Dashboard</h1>
+    <div class="sub">IT asset overview &mdash; {{ today }}</div>
+  </div>
+  <a class="btn" href="{{ url_for('asset_new') }}">➕ Add Asset</a>
+</div>
+
+<form class="filters" method="get" action="{{ url_for('dashboard') }}">
+  <select name="category">
+    <option value="">All categories</option>
+    {% for c in categories %}<option value="{{ c }}" {{ 'selected' if c==sel_category }}>{{ c }}</option>{% endfor %}
+  </select>
+  <select name="location">
+    <option value="">All locations</option>
+    {% for loc in locations %}<option value="{{ loc }}" {{ 'selected' if loc==sel_location }}>{{ loc }}</option>{% endfor %}
+  </select>
+  <button class="btn" type="submit">Apply</button>
+  {% if sel_category or sel_location %}<a class="btn ghost" href="{{ url_for('dashboard') }}">Clear</a>{% endif %}
+</form>
+
+<div class="cards">
+  <div class="card stat">
+    <div class="icon i-blue">💼</div>
+    <div class="label">Total Assets</div>
+    <div class="value">{{ stats.total }}</div>
+  </div>
+  <div class="card stat">
+    <div class="icon i-green">✅</div>
+    <div class="label">In Use</div>
+    <div class="value">{{ stats.in_use }}</div>
+  </div>
+  <div class="card stat">
+    <div class="icon i-amber">🔧</div>
+    <div class="label">In Repair</div>
+    <div class="value">{{ stats.in_repair }}</div>
+  </div>
+  <div class="card stat">
+    <div class="icon i-violet">💰</div>
+    <div class="label">Total Value</div>
+    <div class="value">{{ stats.total_value | money }}</div>
+  </div>
+</div>
+
+<div class="grid-2">
+  <div class="panel">
+    <h2>Assets by Category</h2>
+    <canvas id="catChart" height="140"></canvas>
+  </div>
+  <div class="panel">
+    <h2>Assets by Status</h2>
+    <canvas id="statusChart" height="140"></canvas>
+  </div>
+</div>
+
+<div class="grid-2">
+  <div class="panel">
+    <h2>⚠️ Warranty Expiring Soon (≤ 90 days)</h2>
+    {% if expiring %}
+    <table>
+      <thead><tr><th>Tag</th><th>Name</th><th>Assigned To</th><th>Warranty End</th></tr></thead>
+      <tbody>
+        {% for a in expiring %}
+        <tr>
+          <td><a href="{{ url_for('asset_edit', asset_id=a['id']) }}">{{ a['asset_tag'] }}</a></td>
+          <td>{{ a['name'] }}</td>
+          <td>{{ a['assigned_to'] or '—' }}</td>
+          <td class="{{ 'warn' if a['warranty_end'] <= today }}">{{ a['warranty_end'] }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<p class="muted">No warranties expiring soon.</p>{% endif %}
+  </div>
+  <div class="panel">
+    <h2>Recently Added</h2>
+    {% if recent %}
+    <table>
+      <thead><tr><th>Tag</th><th>Name</th><th>Status</th></tr></thead>
+      <tbody>
+        {% for a in recent %}
+        <tr>
+          <td><a href="{{ url_for('asset_edit', asset_id=a['id']) }}">{{ a['asset_tag'] }}</a></td>
+          <td>{{ a['name'] }}</td>
+          <td><span class="badge b-{{ a['status'] | lower | replace(' ','') }}">{{ a['status'] }}</span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<p class="muted">No assets yet.</p>{% endif %}
+  </div>
+</div>
+
+<script>
+const catData = {{ by_category | tojson }};
+const statusData = {{ by_status | tojson }};
+const palette = ['#4f46e5','#2563eb','#16a34a','#d97706','#dc2626','#0891b2','#7c3aed','#db2777','#65a30d','#475569','#ea580c'];
+
+new Chart(document.getElementById('catChart'), {
+  type: 'bar',
+  data: {
+    labels: catData.map(d => d.category),
+    datasets: [{ label: 'Count', data: catData.map(d => d.c), backgroundColor: '#4f46e5', borderRadius: 6 }]
+  },
+  options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
+});
+
+new Chart(document.getElementById('statusChart'), {
+  type: 'doughnut',
+  data: {
+    labels: statusData.map(d => d.status),
+    datasets: [{ data: statusData.map(d => d.c), backgroundColor: palette }]
+  },
+  options: { plugins: { legend: { position: 'right' } } }
+});
+</script>
+{% endblock %}
