@@ -50,6 +50,7 @@
       <th class="c-assigned">Assigned To</th>
       <th class="c-empid">Employee ID</th>
       <th class="c-phone">Phone</th>
+      <th class="c-email">Email</th>
       <th class="c-location">Location</th>
       <th class="c-cost">Cost</th>
       <th class="c-warranty">Warranty End</th>
@@ -67,6 +68,7 @@
       <td class="c-assigned">{{ a['assigned_to'] or '—' }}</td>
       <td class="c-empid">{{ a['employee_id'] or '—' }}</td>
       <td class="c-phone">{{ a['phone'] or '—' }}</td>
+      <td class="c-email">{{ a['email'] or '—' }}</td>
       <td class="c-location">{{ a['location'] or '—' }}</td>
       <td class="c-cost">{{ a['purchase_cost'] | money }}</td>
       <td class="c-warranty">{{ a['warranty_end'] or '—' }}</td>
@@ -79,7 +81,7 @@
       </td>
     </tr>
     {% else %}
-    <tr><td colspan="12" class="muted" style="text-align:center;padding:32px;">No assets found.</td></tr>
+    <tr><td colspan="13" class="muted" style="text-align:center;padding:32px;">No assets found.</td></tr>
     {% endfor %}
   </tbody>
 </table>
@@ -92,7 +94,7 @@
   const COLS = [
     ["tag", "Tag"], ["name", "Name"], ["serial", "Serial Number"],
     ["category", "Category"], ["status", "Status"], ["assigned", "Assigned To"],
-    ["empid", "Employee ID"], ["phone", "Phone"], ["location", "Location"],
+    ["empid", "Employee ID"], ["phone", "Phone"], ["email", "Email"], ["location", "Location"],
     ["cost", "Cost"], ["warranty", "Warranty End"]
   ];
   const STORE_KEY = "assethub_hidden_cols";

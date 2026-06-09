@@ -1,0 +1,54 @@
+Active Directory (LDAP) configuration
+======================================
+
+The app reads AD settings from environment variables. Set these before
+starting `python app.py`. When AD_SERVER is set, the "Assign from Active
+Directory" search box appears on the Add/Edit Asset form.
+
+Required for a real domain:
+  AD_SERVER          LDAP URL of a domain controller.
+                     e.g.  ldap://dc01.corp.local        (plain, port 389)
+                           ldaps://dc01.corp.local       (SSL, port 636)
+  AD_BASE_DN         Search base, e.g.  DC=corp,DC=local
+  AD_BIND_DN         Service account used to query AD. Either form works:
+                       svc-assets@corp.local
+                       CN=svc-assets,OU=Service,DC=corp,DC=local
+  AD_BIND_PASSWORD   Password for that service account.
+
+Optional:
+  AD_USE_SSL         1 to force LDAPS (otherwise inferred from the URL/port).
+  AD_PORT            Override port (default 389, or 636 for SSL).
+
+Demo without a domain:
+  AD_MOCK            Set to 1 to use built-in sample users (no server needed),
+                     handy for trying the UI.
+
+----------------------------------------------------------------------
+Windows (Command Prompt) example:
+  set AD_SERVER=ldaps://dc01.corp.local
+  set AD_BASE_DN=DC=corp,DC=local
+  set AD_BIND_DN=svc-assets@corp.local
+  set AD_BIND_PASSWORD=YourServiceAccountPassword
+  python app.py
+
+Windows (PowerShell) example:
+  $env:AD_SERVER="ldaps://dc01.corp.local"
+  $env:AD_BASE_DN="DC=corp,DC=local"
+  $env:AD_BIND_DN="svc-assets@corp.local"
+  $env:AD_BIND_PASSWORD="YourServiceAccountPassword"
+  python app.py
+
+Try the demo mode:
+  set AD_MOCK=1
+  python app.py
+
+Fields mapped from AD -> asset:
+  displayName      -> Assigned To
+  employeeID       -> Employee ID
+  telephoneNumber  -> Phone   (falls back to mobile)
+  mail             -> Email
+
+Security notes:
+  - Use a least-privilege, read-only service account.
+  - Prefer LDAPS (ldaps://) so credentials and queries are encrypted.
+  - Do not commit real credentials; keep them in environment variables.

@@ -11,6 +11,19 @@
 </div>
 
 <div class="panel">
+{% if ad_enabled %}
+<div class="ad-box">
+  <div class="ad-head">
+    <strong>🔎 Assign from Active Directory</strong>
+    <span class="muted" style="font-size:12px;">Search your directory and auto-fill the assignee details.</span>
+  </div>
+  <div class="ad-search">
+    <input type="text" id="adQuery" placeholder="Type a name, employee ID, or email…" autocomplete="off">
+    <button type="button" class="btn" id="adBtn">Search AD</button>
+  </div>
+  <div id="adResults" class="ad-results" hidden></div>
+</div>
+{% endif %}
 <form method="post">
   <div class="form-grid">
     <div class="field">
@@ -62,6 +75,10 @@
       <input name="phone" type="tel" value="{{ a['phone'] if a else '' }}" placeholder="e.g. +971 50 123 4567">
     </div>
     <div class="field">
+      <label>Email</label>
+      <input name="email" type="email" value="{{ a['email'] if a else '' }}" placeholder="e.g. user@corp.local">
+    </div>
+    <div class="field">
       <label>Location</label>
       <input name="location" value="{{ a['location'] if a else '' }}" placeholder="e.g. HQ - Floor 3">
     </div>
@@ -88,4 +105,64 @@
   </div>
 </form>
 </div>
+
+{% if ad_enabled %}
+<script>
+(function () {
+  const q = document.getElementById("adQuery");
+  const btn = document.getElementById("adBtn");
+  const box = document.getElementById("adResults");
+
+  function setField(name, val) {
+    const el = document.querySelector('[name="' + name + '"]');
+    if (el) el.value = val || "";
+  }
+  function pick(u) {
+    setField("assigned_to", u.name);
+    setField("employee_id", u.employee_id);
+    setField("phone", u.phone);
+    setField("email", u.email);
+    box.hidden = true;
+    q.value = u.name;
+  }
+  function esc(s) {
+    return (s || "").replace(/[&<>"]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+    });
+  }
+  async function search() {
+    const term = q.value.trim();
+    if (!term) { box.hidden = true; return; }
+    box.hidden = false;
+    box.innerHTML = '<div class="ad-item muted">Searching…</div>';
+    try {
+      const res = await fetch("{{ url_for('api_ad_search') }}?q=" + encodeURIComponent(term));
+      const data = await res.json();
+      if (!data.ok) {
+        box.innerHTML = '<div class="ad-item warn">' + esc(data.error || "AD lookup failed") + '</div>';
+        return;
+      }
+      if (!data.users.length) {
+        box.innerHTML = '<div class="ad-item muted">No matching users found.</div>';
+        return;
+      }
+      box.innerHTML = "";
+      data.users.forEach(function (u) {
+        const row = document.createElement("div");
+        row.className = "ad-item";
+        row.innerHTML = "<strong>" + esc(u.name) + "</strong>" +
+          '<span class="muted"> · ' + esc(u.employee_id || "—") + " · " +
+          esc(u.email || "—") + " · " + esc(u.phone || "—") + "</span>";
+        row.addEventListener("click", function () { pick(u); });
+        box.appendChild(row);
+      });
+    } catch (e) {
+      box.innerHTML = '<div class="ad-item warn">Could not reach the server.</div>';
+    }
+  }
+  btn.addEventListener("click", search);
+  q.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); search(); } });
+})();
+</script>
+{% endif %}
 {% endblock %}

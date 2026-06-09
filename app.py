@@ -34,12 +34,95 @@ EXPORT_COLUMNS = [
     ("assigned_to", "Assigned To"),
     ("employee_id", "Employee ID"),
     ("phone", "Phone"),
+    ("email", "Email"),
     ("location", "Location"),
     ("purchase_cost", "Purchase Cost (AED)"),
     ("purchase_date", "Purchase Date"),
     ("warranty_end", "Warranty End"),
     ("notes", "Notes"),
 ]
+
+# ---------------------------------------------------------------------------
+# Active Directory (on-prem LDAP) integration
+# ---------------------------------------------------------------------------
+# Configure via environment variables (see ad_config.example.txt). For a quick
+# demo without a real domain, set AD_MOCK=1 to use sample users.
+AD_CONFIG = {
+    "server": os.environ.get("AD_SERVER", ""),          # e.g. ldap://dc01.corp.local
+    "port": int(os.environ.get("AD_PORT", "0")) or None,  # default 389, or 636 for SSL
+    "use_ssl": os.environ.get("AD_USE_SSL", "").lower() in ("1", "true", "yes"),
+    "base_dn": os.environ.get("AD_BASE_DN", ""),         # e.g. DC=corp,DC=local
+    "bind_dn": os.environ.get("AD_BIND_DN", ""),         # service account (UPN or DN)
+    "bind_password": os.environ.get("AD_BIND_PASSWORD", ""),
+    "mock": os.environ.get("AD_MOCK", "").lower() in ("1", "true", "yes"),
+}
+AD_CONFIG["enabled"] = bool(AD_CONFIG["server"]) or AD_CONFIG["mock"]
+
+_AD_MOCK_USERS = [
+    {"name": "Alice Johnson", "employee_id": "EMP-1001", "phone": "+971 50 123 4567", "email": "alice.johnson@corp.local"},
+    {"name": "Bob Lee", "employee_id": "EMP-1002", "phone": "+971 52 234 5678", "email": "bob.lee@corp.local"},
+    {"name": "Carol White", "employee_id": "EMP-1003", "phone": "+971 55 345 6789", "email": "carol.white@corp.local"},
+    {"name": "Dan Brown", "employee_id": "EMP-1004", "phone": "+971 56 456 7890", "email": "dan.brown@corp.local"},
+    {"name": "Eve Davis", "employee_id": "EMP-1005", "phone": "+971 54 567 8901", "email": "eve.davis@corp.local"},
+    {"name": "Frank Miller", "employee_id": "EMP-1006", "phone": "+971 50 678 9012", "email": "frank.miller@corp.local"},
+]
+
+
+def ad_search(term, limit=20):
+    """Search Active Directory for users matching `term`.
+    Returns a list of {name, employee_id, phone, email}.
+    Uses mock data if AD_MOCK is set; otherwise queries LDAP via ldap3.
+    """
+    term = (term or "").strip()
+    if not term:
+        return []
+    if AD_CONFIG["mock"]:
+        t = term.lower()
+        return [u for u in _AD_MOCK_USERS
+                if t in u["name"].lower() or t in u["employee_id"].lower()
+                or t in u["email"].lower()][:limit]
+    if not AD_CONFIG["enabled"]:
+        raise RuntimeError(
+            "Active Directory is not configured. Set AD_SERVER, AD_BASE_DN, "
+            "AD_BIND_DN and AD_BIND_PASSWORD (see ad_config.example.txt), or set "
+            "AD_MOCK=1 to try it with sample data.")
+    from ldap3 import Server, Connection, ALL, SUBTREE
+    from ldap3.utils.conv import escape_filter_chars
+    safe = escape_filter_chars(term)
+    server = Server(AD_CONFIG["server"], port=AD_CONFIG["port"],
+                    use_ssl=AD_CONFIG["use_ssl"], get_info=ALL)
+    conn = Connection(server, user=AD_CONFIG["bind_dn"],
+                      password=AD_CONFIG["bind_password"], auto_bind=True)
+    flt = ("(&(objectCategory=person)(objectClass=user)"
+           "(|(displayName=*{0}*)(sAMAccountName=*{0}*)(mail=*{0}*)"
+           "(employeeID=*{0}*)))".format(safe))
+    conn.search(AD_CONFIG["base_dn"], flt, search_scope=SUBTREE,
+                attributes=["displayName", "employeeID", "telephoneNumber",
+                            "mobile", "mail", "sAMAccountName"],
+                size_limit=limit)
+    out = []
+    for e in conn.entries:
+        def g(attr):
+            v = getattr(e, attr, None)
+            return str(v) if v else ""
+        out.append({
+            "name": g("displayName") or g("sAMAccountName"),
+            "employee_id": g("employeeID"),
+            "phone": g("telephoneNumber") or g("mobile"),
+            "email": g("mail"),
+        })
+    conn.unbind()
+    return out
+
+
+@app.route("/api/ad/search")
+def api_ad_search():
+    configured = AD_CONFIG["enabled"]
+    try:
+        users = ad_search(request.args.get("q", ""))
+        return jsonify(ok=True, configured=configured, users=users)
+    except Exception as exc:  # surfaced to the UI as a friendly message
+        return jsonify(ok=False, configured=configured, error=str(exc), users=[])
 
 # ---------------------------------------------------------------------------
 # Database helpers
@@ -93,6 +176,7 @@ def init_db():
             assigned_to   TEXT,
             employee_id   TEXT,
             phone         TEXT,
+            email         TEXT,
             location      TEXT,
             purchase_date TEXT,
             purchase_cost REAL    DEFAULT 0,
@@ -115,7 +199,7 @@ def init_db():
     wanted = {
         "asset_tag": "TEXT", "name": "TEXT", "category": "TEXT", "status": "TEXT",
         "manufacturer": "TEXT", "model": "TEXT", "serial_number": "TEXT",
-        "assigned_to": "TEXT", "employee_id": "TEXT", "phone": "TEXT",
+        "assigned_to": "TEXT", "employee_id": "TEXT", "phone": "TEXT", "email": "TEXT",
         "location": "TEXT", "purchase_date": "TEXT", "purchase_cost": "REAL DEFAULT 0",
         "warranty_end": "TEXT", "notes": "TEXT", "created_at": "TEXT",
     }
@@ -421,10 +505,10 @@ def asset_new():
             conn.execute(
                 """INSERT INTO assets
                    (asset_tag,name,category,status,manufacturer,model,serial_number,
-                    assigned_to,employee_id,phone,location,purchase_date,purchase_cost,
+                    assigned_to,employee_id,phone,email,location,purchase_date,purchase_cost,
                     warranty_end,notes,created_at)
                    VALUES (:asset_tag,:name,:category,:status,:manufacturer,:model,:serial_number,
-                    :assigned_to,:employee_id,:phone,:location,:purchase_date,:purchase_cost,
+                    :assigned_to,:employee_id,:phone,:email,:location,:purchase_date,:purchase_cost,
                     :warranty_end,:notes,:created_at)""",
                 {**data, "created_at": datetime.now().isoformat()},
             )
@@ -436,7 +520,8 @@ def asset_new():
         finally:
             conn.close()
     return render_template(
-        "asset_form.html", asset=None, categories=_all_categories(), statuses=STATUSES, action="new"
+        "asset_form.html", asset=None, categories=_all_categories(), statuses=STATUSES,
+        action="new", ad_enabled=AD_CONFIG["enabled"]
     )
 
 
@@ -455,7 +540,7 @@ def asset_edit(asset_id):
                 """UPDATE assets SET
                    asset_tag=:asset_tag,name=:name,category=:category,status=:status,
                    manufacturer=:manufacturer,model=:model,serial_number=:serial_number,
-                   assigned_to=:assigned_to,employee_id=:employee_id,phone=:phone,
+                   assigned_to=:assigned_to,employee_id=:employee_id,phone=:phone,email=:email,
                    location=:location,purchase_date=:purchase_date,
                    purchase_cost=:purchase_cost,warranty_end=:warranty_end,notes=:notes
                    WHERE id=:id""",
@@ -471,7 +556,8 @@ def asset_edit(asset_id):
         return redirect(url_for("asset_edit", asset_id=asset_id))
     conn.close()
     return render_template(
-        "asset_form.html", asset=asset, categories=_all_categories(), statuses=STATUSES, action="edit"
+        "asset_form.html", asset=asset, categories=_all_categories(), statuses=STATUSES,
+        action="edit", ad_enabled=AD_CONFIG["enabled"]
     )
 
 
@@ -520,6 +606,7 @@ def _form_data():
         "assigned_to": g("assigned_to"),
         "employee_id": g("employee_id"),
         "phone": g("phone"),
+        "email": g("email"),
         "location": g("location"),
         "purchase_date": g("purchase_date"),
         "purchase_cost": cost,

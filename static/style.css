@@ -142,6 +142,24 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
 /* The [hidden] attribute must win over display:flex above, or the menu
    can never close. Attribute selector raises specificity so this applies. */
 .col-menu[hidden] { display: none !important; }
+
+/* Active Directory lookup box */
+.ad-box {
+  background: #f8fafc; border: 1px solid var(--border); border-radius: 10px;
+  padding: 14px 16px; margin-bottom: 20px;
+}
+.ad-head { display: flex; flex-direction: column; gap: 2px; margin-bottom: 10px; }
+.ad-search { display: flex; gap: 10px; }
+.ad-search input { flex: 1; }
+.ad-results {
+  margin-top: 10px; border: 1px solid var(--border); border-radius: 8px;
+  background: #fff; max-height: 260px; overflow-y: auto;
+}
+.ad-results[hidden] { display: none; }
+.ad-item { padding: 10px 12px; border-bottom: 1px solid var(--border); cursor: pointer; font-size: 14px; }
+.ad-item:last-child { border-bottom: none; }
+.ad-item:hover { background: #eef2ff; }
+.ad-item.muted, .ad-item.warn { cursor: default; }
 @media (max-width: 900px) {
   .cards { grid-template-columns: repeat(2,1fr); }
   .grid-2 { grid-template-columns: 1fr; }
